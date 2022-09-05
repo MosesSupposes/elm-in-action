@@ -2,11 +2,12 @@ module PhotoGroove exposing (main)
 
 import Browser
 import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html.Attributes as Attr exposing (..)
 import Html.Events exposing (onClick)
 import Http
-import Json.Decode exposing (Decoder, int, string, succeed)
-import Json.Decode.Pipeline exposing (optional)
+import Json.Decode as Decode exposing (Decoder, int, string, succeed)
+import Json.Decode.Pipeline as PipelineDecode exposing (optional)
+import Json.Encode as Encode
 import Random
 
 
@@ -34,6 +35,12 @@ viewLoaded photos selectedUrl chosenSize =
     , button
         [ onClick ClickedSurpriseMe ]
         [ text "Surprise Me!" ]
+    , div
+        [ class "filters" ]
+        [ viewFilter "Hue" 0
+        , viewFilter "Ripple" 0
+        , viewFilter "Noise" 0
+        ]
     , h3 [] [ text "Thumbnail Size:" ]
     , div [ id "choose-size" ] (List.map viewSizeChooser [ Small, Medium, Large ])
     , div
@@ -64,6 +71,24 @@ viewSizeChooser size =
         [ input [ type_ "radio", name "size", onClick (ClickedSize size) ] []
         , text (sizeToString size)
         ]
+
+
+viewFilter : String -> Int -> Html Msg
+viewFilter name magnitude =
+    div [ class "filter-slider" ]
+        [ label [] [ text name ]
+        , rangeSlider
+            [ Attr.max "11"
+            , Attr.property "val" (Encode.int magnitude)
+            ]
+            []
+        , label [] [ text (String.fromInt magnitude) ]
+        ]
+
+
+rangeSlider : List (Attribute msg) -> List (Html msg) -> Html msg
+rangeSlider attributes children =
+    node "range-slider" attributes children
 
 
 
@@ -132,8 +157,8 @@ photoDecoder : Decoder Photo
 photoDecoder =
     succeed Photo
         -- `succeed` is similar to `return` in Haskell... It lifts the type into the Decoder monad
-        |> Json.Decode.Pipeline.required "url" string
-        |> Json.Decode.Pipeline.required "size" int
+        |> PipelineDecode.required "url" string
+        |> PipelineDecode.required "size" int
         |> optional "title" string "(untitled)"
 
 
@@ -219,7 +244,7 @@ initialCmd : Cmd Msg
 initialCmd =
     Http.get
         { url = "http://elm-in-action.com/photos/list.json"
-        , expect = Http.expectJson GotPhotos (Json.Decode.list photoDecoder)
+        , expect = Http.expectJson GotPhotos (Decode.list photoDecoder)
         }
 
 

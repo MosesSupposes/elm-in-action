@@ -1,6 +1,6 @@
 class RangeSlider extends HTMLElement {
   connectedCallback() {
-    const input = document.createELement("input")
+    const input = document.createElement("input")
     this.appendChild(input)
   }
 }
