@@ -5,8 +5,8 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
-import Json.Decode exposing (Decoder, int, list, string, succeed)
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode exposing (Decoder, int, string, succeed)
+import Json.Decode.Pipeline exposing (optional)
 import Random
 
 
