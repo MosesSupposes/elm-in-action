@@ -9,6 +9,16 @@ class RangeSlider extends HTMLElement {
       sliders: 1,
       grid: false
     })
+
+    const rangeSliderNode = this
+
+    jsr.addEventListener("update", (elem, value) => {
+      const event = new CustomEvent("slide", {
+        detail: { userSlidTo: value }
+      })
+
+      rangeSliderNode.dispatchEvent(event)
+    })
   }
 }
 
