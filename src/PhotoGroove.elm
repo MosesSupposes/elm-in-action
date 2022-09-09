@@ -1,4 +1,4 @@
-module PhotoGroove exposing (main)
+port module PhotoGroove exposing (main)
 
 import Browser
 import Html exposing (..)
@@ -32,25 +32,18 @@ view model =
 viewLoaded : List Photo -> String -> Model -> List (Html Msg)
 viewLoaded photos selectedUrl model =
     [ h1 [] [ text "Photo Groove" ]
-    , button
-        [ onClick ClickedSurpriseMe ]
-        [ text "Surprise Me!" ]
-    , div
-        [ class "filters" ]
+    , button [ onClick ClickedSurpriseMe ] [ text "Surprise Me!" ]
+    , div [ class "activity" ] [ text model.activity ]
+    , div [ class "filters" ]
         [ viewFilter SlidHue "Hue" model.hue
         , viewFilter SlidRipple "Ripple" model.ripple
         , viewFilter SlidNoise "Noise" model.noise
         ]
     , h3 [] [ text "Thumbnail Size:" ]
     , div [ id "choose-size" ] (List.map viewSizeChooser [ Small, Medium, Large ])
-    , div
-        [ id "thumbnails", class (sizeToClass model.chosenSize) ]
+    , div [ id "thumbnails", class (sizeToClass model.chosenSize) ]
         (List.map (viewThumbnail selectedUrl) photos)
-    , img
-        [ class "large"
-        , src (urlPrefix ++ "large/" ++ selectedUrl)
-        ]
-        []
+    , canvas [ id "main-canvas", class "large" ] []
     ]
 
 
@@ -147,6 +140,22 @@ type ThumbnailSize
     | Large
 
 
+port setFilters : FilterOptions -> Cmd msg
+
+
+
+-- TODO: Accept a (Json.Decode.Value -> msg) as an input instead of a (String -> msg)
+
+
+port activityChanges : (String -> msg) -> Sub msg
+
+
+type alias FilterOptions =
+    { url : String
+    , filters : List { name : String, amount : Float }
+    }
+
+
 type alias Photo =
     { url : String
     , size : Int
@@ -165,6 +174,7 @@ photoDecoder =
 
 type alias Model =
     { status : Status
+    , activity : String
     , chosenSize : ThumbnailSize
     , hue : Int
     , ripple : Int
@@ -175,6 +185,7 @@ type alias Model =
 initialModel : Model
 initialModel =
     { status = Loading
+    , activity = ""
     , chosenSize = Medium
     , hue = 5
     , ripple = 5
@@ -191,6 +202,7 @@ type Msg
     | ClickedSize ThumbnailSize
     | ClickedSurpriseMe
     | GotRandomPhoto Photo
+    | GotActivity String
     | GotPhotos (Result Http.Error (List Photo))
     | SlidHue Int
     | SlidRipple Int
@@ -200,9 +212,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ClickedPhoto url ->
-            ( { model | status = selectUrl url model.status }, Cmd.none )
-
         ClickedSize size ->
             ( { model | chosenSize = size }, Cmd.none )
 
@@ -222,13 +231,19 @@ update msg model =
                 Errored _ ->
                     ( model, Cmd.none )
 
+        ClickedPhoto url ->
+            applyFilters { model | status = selectUrl url model.status }
+
         GotRandomPhoto photo ->
-            ( { model | status = selectUrl photo.url model.status }, Cmd.none )
+            applyFilters { model | status = selectUrl photo.url model.status }
+
+        GotActivity activity ->
+            ( { model | activity = activity }, Cmd.none )
 
         GotPhotos (Ok photos) ->
             case photos of
                 first :: rest ->
-                    ( { model | status = Loaded photos first.url }, Cmd.none )
+                    applyFilters { model | status = Loaded photos first.url }
 
                 [] ->
                     ( { model | status = Errored "0 photos found" }, Cmd.none )
@@ -237,13 +252,36 @@ update msg model =
             ( { model | status = Errored "Server error!" }, Cmd.none )
 
         SlidHue hue ->
-            ( { model | hue = hue }, Cmd.none )
+            applyFilters { model | hue = hue }
 
         SlidRipple ripple ->
-            ( { model | ripple = ripple }, Cmd.none )
+            applyFilters { model | ripple = ripple }
 
         SlidNoise noise ->
-            ( { model | noise = noise }, Cmd.none )
+            applyFilters { model | noise = noise }
+
+
+applyFilters : Model -> ( Model, Cmd Msg )
+applyFilters model =
+    case model.status of
+        Loaded photos selectedUrl ->
+            let
+                filters =
+                    [ { name = "Hue", amount = toFloat model.hue / 11 }
+                    , { name = "Ripple", amount = toFloat model.ripple / 11 }
+                    , { name = "Noise", amount = toFloat model.noise / 11 }
+                    ]
+
+                url =
+                    urlPrefix ++ "large/" ++ selectedUrl
+            in
+            ( model, setFilters { url = url, filters = filters } )
+
+        Loading ->
+            ( model, Cmd.none )
+
+        Errored _ ->
+            ( model, Cmd.none )
 
 
 selectUrl : String -> Status -> Status
@@ -266,6 +304,19 @@ onSlide toMsg =
         |> on "slide"
 
 
+
+-- SUBSCRIPTIONS
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    activityChanges GotActivity
+
+
+
+-- MAIN
+
+
 initialCmd : Cmd Msg
 initialCmd =
     Http.get
@@ -275,14 +326,29 @@ initialCmd =
 
 
 
--- MAIN
+{- TODO: Accept a Json.Decode.Value as a flag instead of a Float, that way we can properly
+   sanitize our JS input before propogating it through our program.
+
+   In the event that an invalid value comes through (i.e. not a Float), the Elm Runtime will
+   catch it before it gets a chance to propogate; however, we should have explicit control over
+   how this error is handled.
+-}
 
 
-main : Program () Model Msg
+init : Float -> ( Model, Cmd Msg )
+init flags =
+    let
+        activity =
+            "Initializing Pasta v" ++ String.fromFloat flags
+    in
+    ( { initialModel | activity = activity }, initialCmd )
+
+
+main : Program Float Model Msg
 main =
     Browser.element
-        { init = \flags -> ( initialModel, initialCmd )
+        { init = init
         , view = view
         , update = update
-        , subscriptions = \model -> Sub.none
+        , subscriptions = subscriptions
         }
