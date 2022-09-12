@@ -14,6 +14,10 @@
   <script src="http://elm-in-action.com/pasta.js"></script>
   <script src="app.js"></script>
   <script>
+    const app = Elm.PhotoFolders.init({node: document.getElementById("app")})
+  </script>
+  <!-- 
+  <script>
     const app = Elm.PhotoGroove.init({ 
       node: document.getElementById("app"),
       flags: Pasta.version
@@ -34,6 +38,7 @@
       app.ports.activityChanges.send(activity)
     })
   </script>
+  -->
 
 </body>
 </html>
